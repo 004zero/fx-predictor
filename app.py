@@ -253,7 +253,11 @@ def main():
                               float(cfg["risk"]["risk_per_trade_pct"]), 0.1)
         rr = st.slider("リスクリワード比", 1.0, 5.0, 2.0, 0.1)
         st.divider()
-        auto_refresh = st.toggle("自動更新", value=True)
+        auto_refresh = st.toggle(
+            "自動更新 (シグナル/ゾーン再計算)",
+            value=False,
+            help="ON にすると指定秒ごとに全体リロード。LIVEチャートは常時リアルタイムなのでOFF推奨。",
+        )
         refresh_sec = st.slider("更新間隔(秒)", 15, 300,
                                  int(cfg.get("refresh", {}).get("auto_refresh_seconds", 60)), 15)
         st.divider()
@@ -345,11 +349,55 @@ def main():
     )
 
     # --- タブ ---
-    tab_chart, tab_levels, tab_fund, tab_ml, tab_bt = st.tabs(
-        ["📊チャート", "📏レベル", "📰ファンダ", "🤖ML", "🧪BT"]
+    tab_live, tab_chart, tab_levels, tab_fund, tab_ml, tab_bt = st.tabs(
+        ["🔴LIVE", "📊チャート", "📏レベル", "📰ファンダ", "🤖ML", "🧪BT"]
     )
 
+    with tab_live:
+        st.caption("🔴 TradingViewのリアルタイムティック (秒更新)")
+        tv_sym = pair_cfg.get("tv_symbol", "FX:USDJPY")
+        tv_interval = {"5m": "5", "15m": "15", "1h": "60", "4h": "240", "1d": "D"}.get(interval, "60")
+        tv_html = f"""
+<div class="tradingview-widget-container" style="height:560px;width:100%">
+  <div id="tv_chart_widget" style="height:100%;width:100%"></div>
+</div>
+<script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+<script type="text/javascript">
+new TradingView.widget({{
+  "width": "100%",
+  "height": 560,
+  "symbol": "{tv_sym}",
+  "interval": "{tv_interval}",
+  "timezone": "Asia/Tokyo",
+  "theme": "dark",
+  "style": "1",
+  "locale": "ja",
+  "toolbar_bg": "#0e1117",
+  "enable_publishing": false,
+  "withdateranges": true,
+  "hide_side_toolbar": false,
+  "allow_symbol_change": false,
+  "details": false,
+  "hotlist": false,
+  "calendar": false,
+  "studies": ["MASimple@tv-basicstudies", "RSI@tv-basicstudies"],
+  "container_id": "tv_chart_widget"
+}});
+</script>
+"""
+        st.components.v1.html(tv_html, height=580)
+        st.caption("💡 上記はTradingViewのライブチャート。下のサポート/レジスタンスはこのアプリの計算値です。")
+
+        # 価格水準サマリー
+        if snap.resistance:
+            res_str = "  ".join([f"`{r:.{decimals}f}`" for r in snap.resistance[:3]])
+            st.markdown(f"🔴 **R:** {res_str}")
+        if snap.support:
+            sup_str = "  ".join([f"`{s:.{decimals}f}`" for s in snap.support[:3]])
+            st.markdown(f"🟢 **S:** {sup_str}")
+
     with tab_chart:
+        st.caption("📊 エントリーゾーン (緑=買い帯/赤=売り帯) 付き静的チャート")
         st.plotly_chart(
             chart(df, f"{pair_cfg['label']} {cfg['intervals'][interval]['label']}",
                   snap, decimals),

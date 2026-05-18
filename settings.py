@@ -3,6 +3,7 @@
 PAIRS = {
     "USDJPY": {
         "symbol": "USDJPY=X",
+        "tv_symbol": "FX:USDJPY",
         "pip": 0.01,
         "point_jpy": 100,
         "label": "ドル円",
@@ -10,6 +11,7 @@ PAIRS = {
     },
     "EURUSD": {
         "symbol": "EURUSD=X",
+        "tv_symbol": "FX:EURUSD",
         "pip": 0.0001,
         "point_jpy": 150,
         "label": "ユーロドル",
@@ -17,6 +19,7 @@ PAIRS = {
     },
     "GOLD": {
         "symbol": "GC=F",
+        "tv_symbol": "OANDA:XAUUSD",
         "pip": 0.1,
         "point_jpy": 15,
         "label": "ゴールド (XAU/USD)",
@@ -24,6 +27,7 @@ PAIRS = {
     },
     "BITCOIN": {
         "symbol": "BTC-USD",
+        "tv_symbol": "BITSTAMP:BTCUSD",
         "pip": 1.0,
         "point_jpy": 150,
         "label": "ビットコイン",
