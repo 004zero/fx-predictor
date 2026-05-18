@@ -355,37 +355,37 @@ def main():
 
     with tab_live:
         st.caption("🔴 TradingViewのリアルタイムティック (秒更新)")
-        tv_sym = pair_cfg.get("tv_symbol", "FX:USDJPY")
+        tv_sym = pair_cfg.get("tv_symbol", "OANDA:USDJPY")
         tv_interval = {"5m": "5", "15m": "15", "1h": "60", "4h": "240", "1d": "D"}.get(interval, "60")
+        # Advanced Chart Widget (より堅牢にローソク足が描画される)
         tv_html = f"""
 <div class="tradingview-widget-container" style="height:560px;width:100%">
-  <div id="tv_chart_widget" style="height:100%;width:100%"></div>
+  <div class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%"></div>
+  <div class="tradingview-widget-copyright"><a href="https://jp.tradingview.com/" rel="noopener nofollow" target="_blank"><span class="blue-text">TradingViewで全市場を追跡</span></a></div>
+  <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
+  {{
+    "autosize": true,
+    "symbol": "{tv_sym}",
+    "interval": "{tv_interval}",
+    "timezone": "Asia/Tokyo",
+    "theme": "dark",
+    "style": "1",
+    "locale": "ja",
+    "toolbar_bg": "#0e1117",
+    "enable_publishing": false,
+    "withdateranges": true,
+    "hide_side_toolbar": false,
+    "allow_symbol_change": false,
+    "details": false,
+    "hotlist": false,
+    "calendar": false,
+    "studies": ["STD;SMA", "STD;RSI"],
+    "support_host": "https://www.tradingview.com"
+  }}
+  </script>
 </div>
-<script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
-<script type="text/javascript">
-new TradingView.widget({{
-  "width": "100%",
-  "height": 560,
-  "symbol": "{tv_sym}",
-  "interval": "{tv_interval}",
-  "timezone": "Asia/Tokyo",
-  "theme": "dark",
-  "style": "1",
-  "locale": "ja",
-  "toolbar_bg": "#0e1117",
-  "enable_publishing": false,
-  "withdateranges": true,
-  "hide_side_toolbar": false,
-  "allow_symbol_change": false,
-  "details": false,
-  "hotlist": false,
-  "calendar": false,
-  "studies": ["MASimple@tv-basicstudies", "RSI@tv-basicstudies"],
-  "container_id": "tv_chart_widget"
-}});
-</script>
 """
-        st.components.v1.html(tv_html, height=580)
+        st.components.v1.html(tv_html, height=600)
         st.caption("💡 上記はTradingViewのライブチャート。下のサポート/レジスタンスはこのアプリの計算値です。")
 
         # 価格水準サマリー
