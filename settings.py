@@ -3,7 +3,7 @@
 PAIRS = {
     "USDJPY": {
         "symbol": "USDJPY=X",
-        "tv_symbol": "FX:USDJPY",
+        "tv_symbol": "OANDA:USDJPY",
         "pip": 0.01,
         "point_jpy": 100,
         "label": "ドル円",
@@ -11,7 +11,7 @@ PAIRS = {
     },
     "EURUSD": {
         "symbol": "EURUSD=X",
-        "tv_symbol": "FX:EURUSD",
+        "tv_symbol": "OANDA:EURUSD",
         "pip": 0.0001,
         "point_jpy": 150,
         "label": "ユーロドル",
