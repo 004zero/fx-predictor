@@ -71,6 +71,20 @@ REFRESH = {
 # 業者ごとの「1ロット = 何通貨/oz/BTC」プリセット
 # 不明な業者の場合は「カスタム」を選んで手入力
 BROKER_PRESETS = {
+    "XM Standard / Zero / Ultra Low (1Lot=10万通貨)": {
+        "fx_units_per_lot": 100_000,
+        "gold_units_per_lot": 100,
+        "btc_units_per_lot": 1.0,
+        "min_lot": 0.01,
+        "lot_step": 0.01,
+    },
+    "XM Micro (1Lot=1千通貨)": {
+        "fx_units_per_lot": 1_000,
+        "gold_units_per_lot": 10,
+        "btc_units_per_lot": 0.01,
+        "min_lot": 0.01,
+        "lot_step": 0.01,
+    },
     "DMM FX / GMO / SBI / 外為どっとコム (1Lot=1万通貨)": {
         "fx_units_per_lot": 10_000,
         "gold_units_per_lot": 10,      # CFDの一般値
