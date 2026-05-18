@@ -70,6 +70,7 @@ REFRESH = {
 
 # 業者ごとの「1ロット = 何通貨/oz/BTC」プリセット
 # 不明な業者の場合は「カスタム」を選んで手入力
+# (cache bust: 2026-05-18-v2)
 BROKER_PRESETS = {
     "XM Standard / Zero / Ultra Low (1Lot=10万通貨)": {
         "fx_units_per_lot": 100_000,
