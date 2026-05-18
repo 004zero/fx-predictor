@@ -67,6 +67,8 @@ MOBILE_CSS = """
 }
 .action-buy {background: linear-gradient(135deg,#0f4d20,#26a69a); color:#fff;}
 .action-sell {background: linear-gradient(135deg,#6b1010,#ef5350); color:#fff;}
+.action-weak-buy {background: linear-gradient(135deg,#3d4a1c,#9c8b1c); color:#fff;}
+.action-weak-sell {background: linear-gradient(135deg,#5a3a1a,#d4823c); color:#fff;}
 .action-wait {background: linear-gradient(135deg,#2a2f3a,#5f6b7a); color:#fff;}
 .action-detail {
     font-size: 0.85rem; font-weight: 500; margin-top: 6px; opacity: 0.95;
@@ -75,8 +77,15 @@ MOBILE_CSS = """
     border-radius: 10px; padding: 10px 12px; margin: 6px 0;
     border-left: 4px solid; background: rgba(255,255,255,0.04);
 }
-.zone-buy {border-color: #26a69a;}
-.zone-sell {border-color: #ef5350;}
+.zone-buy-strong {border-color: #26a69a; background: rgba(38,166,154,0.10);}
+.zone-sell-strong {border-color: #ef5350; background: rgba(239,83,80,0.10);}
+.zone-buy-weak {border-color: #1b5e20; background: rgba(38,166,154,0.04); opacity:0.85;}
+.zone-sell-weak {border-color: #b71c1c; background: rgba(239,83,80,0.04); opacity:0.85;}
+.tier-badge {
+    display: inline-block; padding: 1px 8px; border-radius: 10px;
+    font-size: 0.78rem; font-weight: 600;
+    background: rgba(255,255,255,0.08); margin-left: 6px;
+}
 .zone-title {font-weight: 700; font-size: 0.95rem; margin-bottom: 4px;}
 .zone-range {font-family: monospace; font-size: 1.05rem;}
 .zone-sub {font-size: 0.78rem; opacity: 0.75; margin-top: 4px;}
@@ -159,28 +168,60 @@ def chart(df: pd.DataFrame, title: str, snapshot, decimals: int) -> go.Figure:
     return fig
 
 
+def confidence_tier(conf: int) -> tuple[str, str]:
+    """信頼度% から (絵文字, ラベル) を返す"""
+    if conf >= 80:
+        return ("🌟", "強")
+    if conf >= 70:
+        return ("🎯", "推奨")
+    if conf >= 60:
+        return ("💡", "参考")
+    return ("⚪", "弱")
+
+
 def action_banner(action: str, bias: str, note: str):
-    if "買い" in action:
+    is_strong_buy = action == "今すぐ買い"
+    is_strong_sell = action == "今すぐ売り"
+    is_weak_buy = action == "弱シグナル買い"
+    is_weak_sell = action == "弱シグナル売り"
+
+    if is_strong_buy:
         cls, icon = "action-buy", "🟢 BUY"
-    elif "売り" in action:
+        action_text = "今すぐ買い"
+    elif is_strong_sell:
         cls, icon = "action-sell", "🔴 SELL"
+        action_text = "今すぐ売り"
+    elif is_weak_buy:
+        cls, icon = "action-weak-buy", "🟡 弱BUY"
+        action_text = "弱シグナル買い (参考)"
+    elif is_weak_sell:
+        cls, icon = "action-weak-sell", "🟠 弱SELL"
+        action_text = "弱シグナル売り (参考)"
     else:
         cls, icon = "action-wait", "⚪ WAIT"
+        action_text = "様子見"
+
     st.markdown(
-        f'<div class="action-banner {cls}">{icon} ｜ {action}'
+        f'<div class="action-banner {cls}">{icon} ｜ {action_text}'
         f'<div class="action-detail">{note}</div></div>',
         unsafe_allow_html=True,
     )
 
 
 def zone_card(z, is_here: bool, decimals: int):
-    cls = "zone-buy" if z.kind == "buy" else "zone-sell"
+    tier_icon, tier_label = confidence_tier(z.confidence)
+    if z.confidence >= 70:
+        cls = "zone-buy-strong" if z.kind == "buy" else "zone-sell-strong"
+    else:
+        cls = "zone-buy-weak" if z.kind == "buy" else "zone-sell-weak"
     here = " zone-here" if is_here else ""
-    icon = "🟢" if z.kind == "buy" else "🔴"
+    kind_icon = "🟢" if z.kind == "buy" else "🔴"
     here_tag = "  📍 価格はここ！" if is_here else ""
     st.markdown(
         f'<div class="zone-card {cls}{here}">'
-        f'<div class="zone-title">{icon} {z.label}　信頼度{z.confidence}%{here_tag}</div>'
+        f'<div class="zone-title">{kind_icon} {z.label}　'
+        f'<span class="tier-badge">{tier_icon} {tier_label} {z.confidence}%</span>'
+        f'{here_tag}</div>'
         f'<div class="zone-range">エントリー: {z.low:.{decimals}f} 〜 {z.high:.{decimals}f}</div>'
         f'<div class="zone-sub">TP: {z.target:.{decimals}f}　SL: {z.stop:.{decimals}f}　RR: 1:{z.rr}</div>'
         f'<div class="zone-sub">{z.reason}</div>'
@@ -297,8 +338,15 @@ def main():
         st.divider()
         st.subheader("🎯 シグナルフィルタ")
         min_conf = st.slider(
-            "最低信頼度 (%)", 50, 95, 70, 5,
-            help="この信頼度未満のシグナルは表示しません。デフォルト70%以上のみ通知。",
+            "表示する最低信頼度 (%)", 30, 95, 50, 5,
+            help="この信頼度未満のゾーンは非表示。70%以上は「強シグナル」扱いでBUY/SELLバナーが発火。",
+        )
+        st.caption(
+            "🏷️ 信頼度ティア:\n"
+            "・🌟 80%+ = 強  \n"
+            "・🎯 70-79% = 推奨 (BUY/SELL通知発火)  \n"
+            "・💡 60-69% = 参考  \n"
+            "・⚪ 50-59% = 弱"
         )
         st.divider()
         auto_refresh = st.toggle(
@@ -379,17 +427,29 @@ def main():
         st.warning("⚠️ 本日は重要指標・要人発言あり。エントリーは指標前後を避けて。")
 
     # --- エントリーゾーン一覧 ---
-    st.markdown(f"### 🎯 今のエントリーゾーン (信頼度{min_conf}%以上)")
+    strong_zones = [z for z in snap.zones if z.confidence >= 70]
+    weak_zones = [z for z in snap.zones if z.confidence < 70]
+    st.markdown(
+        f"### 🎯 エントリーゾーン　"
+        f"<span style='font-size:0.75rem;opacity:0.7;'>"
+        f"強シグナル {len(strong_zones)}件 / 参考 {len(weak_zones)}件</span>",
+        unsafe_allow_html=True,
+    )
     if not snap.zones:
         st.info(
             f"📭 信頼度{min_conf}%以上のシグナルなし。"
-            f"様子見推奨。"
-            f"（サイドバーで閾値を下げると条件が緩くなります）"
+            f"サイドバーで閾値を下げると候補が増えます。"
         )
-    for z in snap.zones:
-        is_here = (snap.in_zone is not None and z.label == snap.in_zone.label)
-        zone_card(z, is_here, decimals)
-
+    if strong_zones:
+        st.markdown("**🎯 70%以上 (BUY/SELL通知発火)**")
+        for z in strong_zones:
+            is_here = (snap.in_zone is not None and z.label == snap.in_zone.label)
+            zone_card(z, is_here, decimals)
+    if weak_zones:
+        with st.expander(f"💡 参考シグナル ({len(weak_zones)}件、50-69%)", expanded=False):
+            for z in weak_zones:
+                is_here = (snap.in_zone is not None and z.label == snap.in_zone.label)
+                zone_card(z, is_here, decimals)
     # 推奨ロット
     atr_val = float(atr_func(df).iloc[-1])
     plan_dir = "買い" if sig.final_score >= 0 else "売り"

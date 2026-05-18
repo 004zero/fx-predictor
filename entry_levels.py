@@ -81,7 +81,7 @@ def compute_live_snapshot(
     atr_mult_zone: float = 0.5,
     atr_mult_target: float = 2.0,
     atr_mult_stop: float = 1.5,
-    min_confidence: int = 70,   # この閾値未満のゾーンは「教えない」
+    min_confidence: int = 50,   # 表示用フィルタ。70%以上は強シグナル扱いで通知発火
 ) -> LiveSnapshot:
     pip = float(pair_cfg.get("pip", 0.0001))
     decimals = 5 if pip < 0.01 else (3 if pip < 1 else 1)
@@ -172,10 +172,13 @@ def compute_live_snapshot(
             boost = min(15, max(0, int((abs(integrated_score) - 30) / 2)))
             z.confidence = min(100, z.confidence + boost)
 
-    # === 信頼度フィルタ ===
+    # === 信頼度フィルタ (表示用) ===
     qualifying_zones = [z for z in zones if z.confidence >= min_confidence]
 
-    # === 現在価格が「閾値以上の」ゾーンに入っているか ===
+    # === 強シグナル判定 (BUY/SELL バナー発火用、70%固定の通知ライン) ===
+    NOTIFY_THRESHOLD = 70
+
+    # === 現在価格がどのゾーンに入っているか (閾値クリア中) ===
     in_zone: Optional[Zone] = None
     for z in qualifying_zones:
         if z.low <= price <= z.high:
@@ -183,43 +186,52 @@ def compute_live_snapshot(
             break
 
     in_zone_action = "様子見"
+    is_strong = False
     if in_zone:
-        if in_zone.kind == "buy" and bias == "買い":
-            in_zone_action = "今すぐ買い"
-        elif in_zone.kind == "sell" and bias == "売り":
-            in_zone_action = "今すぐ売り"
+        direction_ok = (
+            (in_zone.kind == "buy" and bias == "買い") or
+            (in_zone.kind == "sell" and bias == "売り")
+        )
+        if direction_ok and in_zone.confidence >= NOTIFY_THRESHOLD:
+            in_zone_action = "今すぐ買い" if in_zone.kind == "buy" else "今すぐ売り"
+            is_strong = True
+        elif direction_ok:
+            in_zone_action = "弱シグナル買い" if in_zone.kind == "buy" else "弱シグナル売り"
         else:
-            in_zone_action = "様子見"  # 方向不一致なら見送り
+            in_zone_action = "様子見"
 
     # コメント生成
-    if in_zone_action == "今すぐ買い":
-        note = f"🟢 信頼度{in_zone.confidence}% の押し目買いゾーン到達。エントリー検討タイミング。"
-    elif in_zone_action == "今すぐ売り":
-        note = f"🔴 信頼度{in_zone.confidence}% の戻り売りゾーン到達。エントリー検討タイミング。"
+    if is_strong:
+        kind_txt = "押し目買い" if in_zone.kind == "buy" else "戻り売り"
+        emoji = "🟢" if in_zone.kind == "buy" else "🔴"
+        note = f"{emoji} 信頼度{in_zone.confidence}% の{kind_txt}ゾーン到達。エントリー検討タイミング。"
+    elif in_zone and "弱" in in_zone_action:
+        kind_txt = "押し目買い" if in_zone.kind == "buy" else "戻り売り"
+        note = (f"💡 信頼度{in_zone.confidence}% の{kind_txt}ゾーン内 (参考レベル)。"
+                f"信頼度{NOTIFY_THRESHOLD}%未満のためエントリーは慎重に。")
     elif qualifying_zones:
-        # 閾値クリアのゾーンはあるが、まだ価格未到達
         next_z = qualifying_zones[0]
+        kind_txt = "押し目買い" if next_z.kind == "buy" else "戻り売り"
         if next_z.kind == "buy":
             d = next_z.high - price
-            note = (f"⏳ 信頼度{next_z.confidence}% の押し目買いゾーン "
+            note = (f"⏳ 信頼度{next_z.confidence}% の{kind_txt}ゾーン "
                     f"{next_z.low:.{decimals}f}〜{next_z.high:.{decimals}f} を待機中 "
                     f"(あと {d:+.{decimals}f})")
         else:
             d = price - next_z.low
-            note = (f"⏳ 信頼度{next_z.confidence}% の戻り売りゾーン "
+            note = (f"⏳ 信頼度{next_z.confidence}% の{kind_txt}ゾーン "
                     f"{next_z.low:.{decimals}f}〜{next_z.high:.{decimals}f} を待機中 "
                     f"(あと {d:+.{decimals}f})")
     else:
         note = f"📭 信頼度{min_confidence}%以上のシグナルなし。エントリー見送り推奨。"
 
-    # confidence で並び替え (高い順)
     qualifying_zones.sort(key=lambda z: -z.confidence)
     zones.sort(key=lambda z: -z.confidence)
 
     return LiveSnapshot(
         price=price,
         bias=bias,
-        zones=qualifying_zones[:4],   # 閾値クリアのみを返す
+        zones=qualifying_zones[:6],   # 閾値クリアを最大6件まで
         note=note,
         support=[round(s, decimals) for s in support],
         resistance=[round(r, decimals) for r in resistance],
