@@ -253,6 +253,12 @@ def main():
                               float(cfg["risk"]["risk_per_trade_pct"]), 0.1)
         rr = st.slider("リスクリワード比", 1.0, 5.0, 2.0, 0.1)
         st.divider()
+        st.subheader("🎯 シグナルフィルタ")
+        min_conf = st.slider(
+            "最低信頼度 (%)", 50, 95, 70, 5,
+            help="この信頼度未満のシグナルは表示しません。デフォルト70%以上のみ通知。",
+        )
+        st.divider()
         auto_refresh = st.toggle(
             "自動更新 (シグナル/ゾーン再計算)",
             value=False,
@@ -307,7 +313,7 @@ def main():
     sig = integrate(tech, pred.proba_up if ml_ok else 0.5, fund)
 
     # --- リアルタイム エントリースナップショット ---
-    snap = compute_live_snapshot(df, pair_cfg, sig.final_score)
+    snap = compute_live_snapshot(df, pair_cfg, sig.final_score, min_confidence=min_conf)
 
     # ★ メイン: 「今すぐどうする」 ★
     action_banner(snap.in_zone_action, snap.bias, snap.note)
@@ -331,9 +337,13 @@ def main():
         st.warning("⚠️ 本日は重要指標・要人発言あり。エントリーは指標前後を避けて。")
 
     # --- エントリーゾーン一覧 ---
-    st.markdown("### 🎯 今のエントリーゾーン")
+    st.markdown(f"### 🎯 今のエントリーゾーン (信頼度{min_conf}%以上)")
     if not snap.zones:
-        st.info("エントリーに適したゾーンが見つかりません。レンジ確認中。")
+        st.info(
+            f"📭 信頼度{min_conf}%以上のシグナルなし。"
+            f"様子見推奨。"
+            f"（サイドバーで閾値を下げると条件が緩くなります）"
+        )
     for z in snap.zones:
         is_here = (snap.in_zone is not None and z.label == snap.in_zone.label)
         zone_card(z, is_here, decimals)

@@ -81,6 +81,7 @@ def compute_live_snapshot(
     atr_mult_zone: float = 0.5,
     atr_mult_target: float = 2.0,
     atr_mult_stop: float = 1.5,
+    min_confidence: int = 70,   # この閾値未満のゾーンは「教えない」
 ) -> LiveSnapshot:
     pip = float(pair_cfg.get("pip", 0.0001))
     decimals = 5 if pip < 0.01 else (3 if pip < 1 else 1)
@@ -151,6 +152,10 @@ def compute_live_snapshot(
             continue
         conf = 70 if bias == "売り" else (50 if bias == "中立" else 30)
         conf -= i * 10
+        # 統合スコアが極端なほど信頼度ボーナス
+        score_boost = min(15, max(0, int((abs(integrated_score) - 30) / 2)))
+        if (bias == "売り" and conf > 0):
+            conf += score_boost
         zones.append(Zone(
             kind="sell",
             low=round(z_low, decimals), high=round(z_high, decimals),
@@ -161,51 +166,60 @@ def compute_live_snapshot(
             reason=f"レジスタンス{res:.{decimals}f}付近への戻り。ATR={atr:.{decimals}f}",
         ))
 
-    # === 現在価格がどのゾーンに入っているか ===
-    in_zone: Optional[Zone] = None
+    # 買いゾーンにも統合スコア・ボーナスを適用
     for z in zones:
+        if z.kind == "buy" and bias == "買い":
+            boost = min(15, max(0, int((abs(integrated_score) - 30) / 2)))
+            z.confidence = min(100, z.confidence + boost)
+
+    # === 信頼度フィルタ ===
+    qualifying_zones = [z for z in zones if z.confidence >= min_confidence]
+
+    # === 現在価格が「閾値以上の」ゾーンに入っているか ===
+    in_zone: Optional[Zone] = None
+    for z in qualifying_zones:
         if z.low <= price <= z.high:
             in_zone = z
             break
 
     in_zone_action = "様子見"
     if in_zone:
-        if in_zone.kind == "buy" and bias != "売り":
+        if in_zone.kind == "buy" and bias == "買い":
             in_zone_action = "今すぐ買い"
-        elif in_zone.kind == "sell" and bias != "買い":
+        elif in_zone.kind == "sell" and bias == "売り":
             in_zone_action = "今すぐ売り"
         else:
-            in_zone_action = f"{in_zone.kind}ゾーン内 (方向と逆なので注意)"
+            in_zone_action = "様子見"  # 方向不一致なら見送り
 
     # コメント生成
-    if bias == "買い" and in_zone_action == "今すぐ買い":
-        note = "🟢 押し目買いゾーン到達。エントリー検討タイミング。"
-    elif bias == "売り" and in_zone_action == "今すぐ売り":
-        note = "🔴 戻り売りゾーン到達。エントリー検討タイミング。"
-    elif bias == "買い":
-        next_buy = next((z for z in zones if z.kind == "buy"), None)
-        if next_buy:
-            d = next_buy.high - price
-            note = f"買い目線。次の押し目買いゾーン {next_buy.low:.{decimals}f}〜{next_buy.high:.{decimals}f} まで {d:+.{decimals}f}"
+    if in_zone_action == "今すぐ買い":
+        note = f"🟢 信頼度{in_zone.confidence}% の押し目買いゾーン到達。エントリー検討タイミング。"
+    elif in_zone_action == "今すぐ売り":
+        note = f"🔴 信頼度{in_zone.confidence}% の戻り売りゾーン到達。エントリー検討タイミング。"
+    elif qualifying_zones:
+        # 閾値クリアのゾーンはあるが、まだ価格未到達
+        next_z = qualifying_zones[0]
+        if next_z.kind == "buy":
+            d = next_z.high - price
+            note = (f"⏳ 信頼度{next_z.confidence}% の押し目買いゾーン "
+                    f"{next_z.low:.{decimals}f}〜{next_z.high:.{decimals}f} を待機中 "
+                    f"(あと {d:+.{decimals}f})")
         else:
-            note = "買い目線だが、押し目ゾーンが遠い。"
-    elif bias == "売り":
-        next_sell = next((z for z in zones if z.kind == "sell"), None)
-        if next_sell:
-            d = price - next_sell.low
-            note = f"売り目線。次の戻り売りゾーン {next_sell.low:.{decimals}f}〜{next_sell.high:.{decimals}f} まで {d:+.{decimals}f}"
-        else:
-            note = "売り目線だが、戻りゾーンが遠い。"
+            d = price - next_z.low
+            note = (f"⏳ 信頼度{next_z.confidence}% の戻り売りゾーン "
+                    f"{next_z.low:.{decimals}f}〜{next_z.high:.{decimals}f} を待機中 "
+                    f"(あと {d:+.{decimals}f})")
     else:
-        note = "中立。レンジ内、明確なエントリーは見送り推奨。"
+        note = f"📭 信頼度{min_confidence}%以上のシグナルなし。エントリー見送り推奨。"
 
-    # confidence で並び替え
+    # confidence で並び替え (高い順)
+    qualifying_zones.sort(key=lambda z: -z.confidence)
     zones.sort(key=lambda z: -z.confidence)
 
     return LiveSnapshot(
         price=price,
         bias=bias,
-        zones=zones[:4],
+        zones=qualifying_zones[:4],   # 閾値クリアのみを返す
         note=note,
         support=[round(s, decimals) for s in support],
         resistance=[round(r, decimals) for r in resistance],
