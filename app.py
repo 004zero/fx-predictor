@@ -202,33 +202,34 @@ def main():
 
     st.title("📈 FX/Gold/BTC 予想")
 
-    # --- 銘柄&時間足クイック選択 ---
-    pair_keys = list(cfg["pairs"].keys())
-    interval_keys = list(cfg["intervals"].keys())
+    # --- 銘柄&時間足クイック選択 (Python3.14互換性のためformat_func不使用) ---
+    pair_label_to_key = {}
+    for k, v in cfg["pairs"].items():
+        pair_label_to_key[str(v.get("label", k))] = k
+    pair_labels = list(pair_label_to_key.keys())
 
-    def _pair_label(k: str) -> str:
-        return str(cfg["pairs"][k].get("label", k))
-
-    def _interval_label(k: str) -> str:
-        return str(cfg["intervals"][k].get("label", k))
+    interval_label_to_key = {}
+    for k, v in cfg["intervals"].items():
+        interval_label_to_key[str(v.get("label", k))] = k
+    interval_labels = list(interval_label_to_key.keys())
 
     qc1, qc2 = st.columns(2)
-    pair = qc1.selectbox(
-        label="銘柄",
-        options=pair_keys,
-        index=0,
-        format_func=_pair_label,
-        key="pair",
-        label_visibility="collapsed",
-    )
-    interval = qc2.selectbox(
-        label="時間足",
-        options=interval_keys,
-        index=min(2, len(interval_keys) - 1),
-        format_func=_interval_label,
-        key="interval",
-        label_visibility="collapsed",
-    )
+    with qc1:
+        selected_pair_label = st.selectbox(
+            "銘柄",
+            pair_labels,
+            index=0,
+            key="pair_label",
+        )
+    with qc2:
+        selected_interval_label = st.selectbox(
+            "時間足",
+            interval_labels,
+            index=min(2, len(interval_labels) - 1),
+            key="interval_label",
+        )
+    pair = pair_label_to_key[selected_pair_label]
+    interval = interval_label_to_key[selected_interval_label]
 
     pair_cfg = cfg["pairs"][pair]
     symbol = pair_cfg["symbol"]
