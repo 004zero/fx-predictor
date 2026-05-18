@@ -354,46 +354,64 @@ def main():
     )
 
     with tab_live:
-        st.caption("🔴 TradingViewのリアルタイムティック (秒更新)")
-        tv_sym = pair_cfg.get("tv_symbol", "OANDA:USDJPY")
-        tv_interval = {"5m": "5", "15m": "15", "1h": "60", "4h": "240", "1d": "D"}.get(interval, "60")
-        # Iframe embed方式 (Advanced Chart Widgetよりサイジング問題が起きにくい)
-        tv_url = (
-            "https://s.tradingview.com/widgetembed/"
-            f"?symbol={tv_sym}"
-            f"&interval={tv_interval}"
-            "&hidesidetoolbar=0"
-            "&symboledit=0"
-            "&saveimage=0"
-            "&toolbarbg=0e1117"
-            "&studies=%5B%22MASimple%40tv-basicstudies%22%2C%22RSI%40tv-basicstudies%22%5D"
-            "&theme=dark"
-            "&style=1"
-            "&timezone=Asia%2FTokyo"
-            "&withdateranges=1"
-            "&studies_overrides=%7B%7D"
-            "&overrides=%7B%7D"
-            "&enabled_features=%5B%5D"
-            "&disabled_features=%5B%22header_symbol_search%22%2C%22header_compare%22%5D"
-            "&locale=ja"
-            "&utm_source=fx-yoso.streamlit.app"
-        )
-        tv_html = f"""
-<iframe src="{tv_url}"
-        style="width:100%;height:560px;border:none;display:block;border-radius:8px;"
-        allowtransparency="true" scrolling="no" frameborder="0">
-</iframe>
-"""
-        st.components.v1.html(tv_html, height=580)
-        st.caption("💡 上記はTradingViewのライブチャート。下のサポート/レジスタンスはこのアプリの計算値です。")
+        st.caption("🔴 ライブチャート (10秒ごと自動更新・5分足で直近フロー表示)")
 
-        # 価格水準サマリー
-        if snap.resistance:
-            res_str = "  ".join([f"`{r:.{decimals}f}`" for r in snap.resistance[:3]])
-            st.markdown(f"🔴 **R:** {res_str}")
-        if snap.support:
-            sup_str = "  ".join([f"`{s:.{decimals}f}`" for s in snap.support[:3]])
-            st.markdown(f"🟢 **S:** {sup_str}")
+        @st.fragment(run_every="10s")
+        def live_chart_fragment():
+            # 5分足の直近データを取得して描画 (LIVEっぽい表示)
+            try:
+                live_df = fetch_ohlc(symbol, interval="5m", period="5d")
+            except Exception as e:
+                st.error(f"ライブデータ取得失敗: {e}")
+                return
+            now_str = datetime.now().strftime("%H:%M:%S")
+            cur = float(live_df["Close"].iloc[-1])
+            prev = float(live_df["Close"].iloc[-2])
+            chg = cur - prev
+            chg_pct = chg / prev * 100
+            lc1, lc2, lc3 = st.columns(3)
+            lc1.metric("現値", f"{cur:.{decimals}f}", f"{chg:+.{decimals}f} ({chg_pct:+.3f}%)")
+            lc2.metric("足", "5分", f"直近{len(live_df)}本")
+            lc3.metric("更新", now_str)
+
+            d = live_df.tail(120)
+            fig = go.Figure(go.Candlestick(
+                x=d.index, open=d["Open"], high=d["High"], low=d["Low"], close=d["Close"],
+                increasing_line_color="#26a69a", decreasing_line_color="#ef5350",
+                name="価格",
+            ))
+            # サポート/レジスタンス水平線
+            for r in snap.resistance[:3]:
+                fig.add_hline(y=r, line_color="#ef5350", line_width=1, line_dash="dot",
+                              annotation_text=f"R {r:.{decimals}f}", annotation_position="right",
+                              annotation_font_size=10)
+            for s in snap.support[:3]:
+                fig.add_hline(y=s, line_color="#26a69a", line_width=1, line_dash="dot",
+                              annotation_text=f"S {s:.{decimals}f}", annotation_position="right",
+                              annotation_font_size=10)
+            # 現値ライン
+            fig.add_hline(y=cur, line_color="#ffeb3b", line_width=1,
+                          annotation_text=f"現値 {cur:.{decimals}f}",
+                          annotation_position="left", annotation_font_size=10)
+            # ゾーン
+            for z in snap.zones[:2]:
+                color = "rgba(38,166,154,0.18)" if z.kind == "buy" else "rgba(239,83,80,0.18)"
+                fig.add_hrect(y0=z.low, y1=z.high, fillcolor=color, line_width=0)
+            fig.update_layout(
+                height=460,
+                xaxis_rangeslider_visible=False,
+                margin=dict(l=4, r=4, t=20, b=4),
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(size=10),
+                showlegend=False,
+            )
+            fig.update_xaxes(showgrid=False)
+            fig.update_yaxes(showgrid=True, gridcolor="rgba(128,128,128,0.15)")
+            st.plotly_chart(fig, use_container_width=True,
+                             config={"displayModeBar": False, "scrollZoom": False})
+
+        live_chart_fragment()
+        st.caption("💡 サポート(緑線)/レジスタンス(赤線)はこのアプリの計算値です")
 
     with tab_chart:
         st.caption("📊 エントリーゾーン (緑=買い帯/赤=売り帯) 付き静的チャート")
