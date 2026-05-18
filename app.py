@@ -335,6 +335,42 @@ def main():
         risk_pct = st.slider("1トレード許容リスク %", 0.1, 5.0,
                               float(cfg["risk"]["risk_per_trade_pct"]), 0.1)
         rr = st.slider("リスクリワード比", 1.0, 5.0, 2.0, 0.1)
+
+        st.subheader("🏦 ブローカー / ロット定義")
+        broker_keys = list(cfg["broker_presets"].keys())
+        broker_choice = st.selectbox(
+            "ご利用の業者を選択",
+            broker_keys,
+            index=0,
+            key="broker",
+            help="業者ごとの「1ロット=何通貨」定義に合わせて推奨ロットを算出します。",
+        )
+        broker_preset = dict(cfg["broker_presets"][broker_choice])  # コピーして編集可
+        if "カスタム" in broker_choice:
+            cc1, cc2 = st.columns(2)
+            broker_preset["fx_units_per_lot"] = cc1.number_input(
+                "FX 1Lot=通貨", value=int(broker_preset["fx_units_per_lot"]),
+                step=1000, min_value=100,
+            )
+            broker_preset["min_lot"] = cc2.number_input(
+                "最小Lot", value=float(broker_preset["min_lot"]),
+                step=0.01, min_value=0.01, format="%.2f",
+            )
+            cc3, cc4 = st.columns(2)
+            broker_preset["lot_step"] = cc3.number_input(
+                "Lot刻み", value=float(broker_preset["lot_step"]),
+                step=0.01, min_value=0.01, format="%.2f",
+            )
+            broker_preset["gold_units_per_lot"] = cc4.number_input(
+                "Gold 1Lot=oz", value=float(broker_preset["gold_units_per_lot"]),
+                step=1.0, min_value=0.1,
+            )
+        st.caption(
+            f"📐 1Lot = FX **{int(broker_preset['fx_units_per_lot']):,}通貨** / "
+            f"Gold **{broker_preset['gold_units_per_lot']}oz** / "
+            f"BTC **{broker_preset['btc_units_per_lot']}**　"
+            f"最小 {broker_preset['min_lot']}Lot / 刻み {broker_preset['lot_step']}Lot"
+        )
         st.divider()
         st.subheader("🎯 シグナルフィルタ")
         min_conf = st.slider(
@@ -453,12 +489,24 @@ def main():
     # 推奨ロット
     atr_val = float(atr_func(df).iloc[-1])
     plan_dir = "買い" if sig.final_score >= 0 else "売り"
-    plan = calc_plan(pair_cfg, last_close, plan_dir, atr_val, bal, risk_pct, rr)
+    plan = calc_plan(pair_cfg, last_close, plan_dir, atr_val, bal, risk_pct, rr,
+                      broker_preset=broker_preset)
+    # 通貨量の整形 (FXは整数、Goldは小数1桁、BTCは小数3桁)
+    cat = pair_cfg.get("category", "fx")
+    if cat == "fx":
+        units_str = f"{int(plan.units):,}"
+    elif cat == "metal":
+        units_str = f"{plan.units:.1f}"
+    else:
+        units_str = f"{plan.units:.4f}"
     st.markdown(
-        f"💡 **推奨ロット ({plan_dir}):** {plan.units} {plan.units_label}　"
-        f"SL/TP: {plan.sl_points:.0f}/{plan.tp_points:.0f}pt　"
-        f"最大損失: {plan.risk_jpy:,.0f}円"
+        f"💡 **推奨ロット ({plan_dir}):** **`{plan.lots} Lot`**　"
+        f"<span style='opacity:0.7;font-size:0.88em;'>≒ {units_str} {plan.units_label}</span>　"
+        f"｜ SL/TP: {plan.sl_points:.0f}/{plan.tp_points:.0f}pt　"
+        f"｜ 最大損失: **{plan.risk_jpy:,.0f}円**",
+        unsafe_allow_html=True,
     )
+    st.caption(f"🏦 ブローカー設定: {broker_choice}")
 
     # --- タブ ---
     tab_live, tab_chart, tab_levels, tab_fund, tab_ml, tab_bt = st.tabs(

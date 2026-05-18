@@ -68,6 +68,53 @@ REFRESH = {
     "auto_refresh_seconds": 60,
 }
 
+# 業者ごとの「1ロット = 何通貨/oz/BTC」プリセット
+# 不明な業者の場合は「カスタム」を選んで手入力
+BROKER_PRESETS = {
+    "DMM FX / GMO / SBI / 外為どっとコム (1Lot=1万通貨)": {
+        "fx_units_per_lot": 10_000,
+        "gold_units_per_lot": 10,      # CFDの一般値
+        "btc_units_per_lot": 0.01,
+        "min_lot": 0.1,
+        "lot_step": 0.1,
+    },
+    "みんなのFX / LIGHT FX / マネパ (1Lot=1万通貨)": {
+        "fx_units_per_lot": 10_000,
+        "gold_units_per_lot": 10,
+        "btc_units_per_lot": 0.01,
+        "min_lot": 0.1,
+        "lot_step": 0.1,
+    },
+    "外為オンライン (1Lot=1千通貨)": {
+        "fx_units_per_lot": 1_000,
+        "gold_units_per_lot": 1,
+        "btc_units_per_lot": 0.001,
+        "min_lot": 1.0,
+        "lot_step": 1.0,
+    },
+    "MT4 / MT5 (海外標準 1Lot=10万通貨)": {
+        "fx_units_per_lot": 100_000,
+        "gold_units_per_lot": 100,
+        "btc_units_per_lot": 1.0,
+        "min_lot": 0.01,
+        "lot_step": 0.01,
+    },
+    "OANDA Japan / IG証券 (1Lot=1万通貨)": {
+        "fx_units_per_lot": 10_000,
+        "gold_units_per_lot": 10,
+        "btc_units_per_lot": 0.01,
+        "min_lot": 0.1,
+        "lot_step": 0.1,
+    },
+    "カスタム (手動指定)": {
+        "fx_units_per_lot": 10_000,
+        "gold_units_per_lot": 10,
+        "btc_units_per_lot": 0.01,
+        "min_lot": 0.1,
+        "lot_step": 0.1,
+    },
+}
+
 
 CFG = {
     "pairs": PAIRS,
@@ -76,4 +123,5 @@ CFG = {
     "fundamental": FUNDAMENTAL,
     "prediction": PREDICTION,
     "refresh": REFRESH,
+    "broker_presets": BROKER_PRESETS,
 }
