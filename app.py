@@ -23,7 +23,7 @@ from signal_engine import integrate
 from risk_manager import calc_plan
 from entry_levels import compute_live_snapshot
 from backtest import run_backtest
-from settings import CFG
+from settings import CFG, BROKER_PRESETS
 
 
 @st.cache_resource
@@ -337,7 +337,7 @@ def main():
         rr = st.slider("リスクリワード比", 1.0, 5.0, 2.0, 0.1)
 
         st.subheader("🏦 ブローカー / ロット定義")
-        broker_keys = list(cfg["broker_presets"].keys())
+        broker_keys = list(BROKER_PRESETS.keys())
         broker_choice = st.selectbox(
             "ご利用の業者を選択",
             broker_keys,
@@ -345,7 +345,7 @@ def main():
             key="broker",
             help="業者ごとの「1ロット=何通貨」定義に合わせて推奨ロットを算出します。",
         )
-        broker_preset = dict(cfg["broker_presets"][broker_choice])  # コピーして編集可
+        broker_preset = dict(BROKER_PRESETS[broker_choice])  # コピーして編集可
         if "カスタム" in broker_choice:
             cc1, cc2 = st.columns(2)
             broker_preset["fx_units_per_lot"] = cc1.number_input(
