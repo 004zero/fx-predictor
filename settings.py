@@ -36,6 +36,7 @@ PAIRS = {
 }
 
 INTERVALS = {
+    "1m":  {"period": "7d",  "label": "1分足"},
     "5m":  {"period": "5d",  "label": "5分足"},
     "15m": {"period": "10d", "label": "15分足"},
     "1h":  {"period": "60d", "label": "1時間足"},

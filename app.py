@@ -198,6 +198,48 @@ def main():
 
     st.title("📈 FX/Gold/BTC 予想")
 
+    with st.expander("📖 使い方ガイド（タップで開閉）", expanded=False):
+        st.markdown(
+            """
+**🎯 このアプリの目的**
+高信頼度のエントリー機会を逃さず、しかも無駄なポジションを取らないためのシグナル提供。
+
+**1️⃣ まず銘柄と時間足を選ぶ**
+- 銘柄: ドル円 / ユーロドル / ゴールド / ビットコイン
+- 時間足: 1分〜日足（**シグナル判定の基準足**。スキャル→1分/5分、デイトレ→15分/1時間、スイング→4時間/日足）
+
+**2️⃣ アクションバナーを見る**
+- 🟢 **BUY** = 高信頼度の押し目買いゾーンに価格突入中 → エントリー検討
+- 🔴 **SELL** = 高信頼度の戻り売りゾーンに価格突入中 → エントリー検討
+- ⚪ **WAIT** = 条件未達。待機推奨
+
+**3️⃣ エントリーゾーン詳細を確認**
+各カードに記載されているのは:
+- **エントリー価格帯**（成行/逆指値で仕掛ける範囲）
+- **TP**（利確）/ **SL**（損切）
+- **RR**（リスクリワード比、1:2なら損1に対し利2狙い）
+- **信頼度%**（70%以上のみ表示）
+
+**4️⃣ 推奨ロットに従う**
+口座残高 × 許容リスク%（サイドバーで設定）から自動算出。SL到達で最大損失金額が表示。
+
+**🔴 LIVEタブ**: 1分/5分/15分から選んで秒単位で更新するライブチャート
+**📊 チャート**: フルテクニカル（MA/BB/RSI/MACD/一目均衡）
+**📏 レベル**: サポート/レジスタンス一覧
+**📰 ファンダ**: 羊飼いブログから今週の重要指標・要人発言（当日リスク自動減衰）
+**🤖 ML**: 機械学習による上昇確率予測
+**🧪 BT**: 過去データでの勝率検証
+
+**⚙️ サイドバー（左上「»」または左端矢印で開く）**
+- **最低信頼度%**: ここで70→50に下げると条件を緩められる
+- **口座残高 / 許容リスク%**: ロット自動計算に使用
+- **自動更新**: ON にすると全シグナル再計算（重い処理）
+
+**⚠️ 注意**
+投資判断は自己責任。指標発表前後は **当日リスク** が自動加算されシグナル減衰します。
+            """
+        )
+
     # --- 銘柄&時間足クイック選択 (Python3.14互換性のためformat_func不使用) ---
     pair_label_to_key = {}
     for k, v in cfg["pairs"].items():
@@ -364,13 +406,25 @@ def main():
     )
 
     with tab_live:
-        st.caption("🔴 ライブチャート (10秒ごと自動更新・5分足で直近フロー表示)")
+        # ライブ用の足選択 (1分/5分/15分)
+        lc_top1, lc_top2 = st.columns([2, 1])
+        with lc_top1:
+            st.caption("🔴 LIVE チャート (5秒ごとに自動更新)")
+        with lc_top2:
+            live_tf = st.selectbox(
+                "ライブ足",
+                ["1分", "5分", "15分"],
+                index=0,
+                key="live_tf",
+                label_visibility="collapsed",
+            )
+        live_tf_map = {"1分": ("1m", "1d"), "5分": ("5m", "5d"), "15分": ("15m", "10d")}
+        live_iv, live_period = live_tf_map[live_tf]
 
-        @st.fragment(run_every="10s")
+        @st.fragment(run_every="5s")
         def live_chart_fragment():
-            # 5分足の直近データを取得して描画 (LIVEっぽい表示)
             try:
-                live_df = fetch_ohlc(symbol, interval="5m", period="5d")
+                live_df = fetch_ohlc(symbol, interval=live_iv, period=live_period)
             except Exception as e:
                 st.error(f"ライブデータ取得失敗: {e}")
                 return
@@ -379,49 +433,75 @@ def main():
             prev = float(live_df["Close"].iloc[-2])
             chg = cur - prev
             chg_pct = chg / prev * 100
+            # ライブインジケータ (脈動)
+            st.markdown(
+                f'<div style="display:flex;align-items:center;gap:8px;font-size:0.85rem;">'
+                f'<span style="display:inline-block;width:10px;height:10px;border-radius:50%;'
+                f'background:#ef5350;animation:pulse 1.5s infinite;"></span>'
+                f'<span>LIVE　{live_tf}　更新 {now_str}</span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
             lc1, lc2, lc3 = st.columns(3)
             lc1.metric("現値", f"{cur:.{decimals}f}", f"{chg:+.{decimals}f} ({chg_pct:+.3f}%)")
-            lc2.metric("足", "5分", f"直近{len(live_df)}本")
-            lc3.metric("更新", now_str)
+            lc2.metric("足", live_tf, f"直近{len(live_df)}本")
+            lc3.metric("最終更新", now_str)
 
-            d = live_df.tail(120)
+            # 直近100本にしてズームを効かせる
+            d = live_df.tail(100)
+            y_min = float(d["Low"].min())
+            y_max = float(d["High"].max())
+            y_pad = (y_max - y_min) * 0.15 if y_max > y_min else cur * 0.001
+
             fig = go.Figure(go.Candlestick(
                 x=d.index, open=d["Open"], high=d["High"], low=d["Low"], close=d["Close"],
                 increasing_line_color="#26a69a", decreasing_line_color="#ef5350",
                 name="価格",
             ))
-            # サポート/レジスタンス水平線
+
+            # 直近の足を強調(縦点線)
+            fig.add_vline(x=d.index[-1], line_color="#ffeb3b",
+                          line_width=1, line_dash="dot",
+                          opacity=0.5)
+
+            # サポート/レジスタンス水平線 (チャート範囲内のみ)
             for r in snap.resistance[:3]:
-                fig.add_hline(y=r, line_color="#ef5350", line_width=1, line_dash="dot",
-                              annotation_text=f"R {r:.{decimals}f}", annotation_position="right",
-                              annotation_font_size=10)
+                if y_min - y_pad <= r <= y_max + y_pad:
+                    fig.add_hline(y=r, line_color="#ef5350", line_width=1, line_dash="dot",
+                                  annotation_text=f"R {r:.{decimals}f}",
+                                  annotation_position="right", annotation_font_size=10)
             for s in snap.support[:3]:
-                fig.add_hline(y=s, line_color="#26a69a", line_width=1, line_dash="dot",
-                              annotation_text=f"S {s:.{decimals}f}", annotation_position="right",
-                              annotation_font_size=10)
-            # 現値ライン
-            fig.add_hline(y=cur, line_color="#ffeb3b", line_width=1,
-                          annotation_text=f"現値 {cur:.{decimals}f}",
-                          annotation_position="left", annotation_font_size=10)
-            # ゾーン
+                if y_min - y_pad <= s <= y_max + y_pad:
+                    fig.add_hline(y=s, line_color="#26a69a", line_width=1, line_dash="dot",
+                                  annotation_text=f"S {s:.{decimals}f}",
+                                  annotation_position="right", annotation_font_size=10)
+            # 現値ライン (太め)
+            fig.add_hline(y=cur, line_color="#ffeb3b", line_width=2,
+                          annotation_text=f"●  {cur:.{decimals}f}",
+                          annotation_position="left", annotation_font_size=11)
+            # ゾーン (範囲内のみ)
             for z in snap.zones[:2]:
-                color = "rgba(38,166,154,0.18)" if z.kind == "buy" else "rgba(239,83,80,0.18)"
-                fig.add_hrect(y0=z.low, y1=z.high, fillcolor=color, line_width=0)
+                if z.high >= y_min - y_pad and z.low <= y_max + y_pad:
+                    color = "rgba(38,166,154,0.20)" if z.kind == "buy" else "rgba(239,83,80,0.20)"
+                    fig.add_hrect(y0=z.low, y1=z.high, fillcolor=color, line_width=0)
+
             fig.update_layout(
-                height=460,
+                height=440,
                 xaxis_rangeslider_visible=False,
-                margin=dict(l=4, r=4, t=20, b=4),
+                margin=dict(l=4, r=4, t=10, b=4),
                 paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
                 font=dict(size=10),
                 showlegend=False,
+                yaxis=dict(range=[y_min - y_pad, y_max + y_pad]),
+                uirevision="live",  # 自動更新時にユーザーのズーム状態を保持
             )
-            fig.update_xaxes(showgrid=False)
+            fig.update_xaxes(showgrid=False, rangeslider_visible=False)
             fig.update_yaxes(showgrid=True, gridcolor="rgba(128,128,128,0.15)")
             st.plotly_chart(fig, use_container_width=True,
                              config={"displayModeBar": False, "scrollZoom": False})
 
         live_chart_fragment()
-        st.caption("💡 サポート(緑線)/レジスタンス(赤線)はこのアプリの計算値です")
+        st.caption("💡 サポート(緑線)/レジスタンス(赤線)・ゾーン帯はこのアプリの計算値")
 
     with tab_chart:
         st.caption("📊 エントリーゾーン (緑=買い帯/赤=売り帯) 付き静的チャート")
