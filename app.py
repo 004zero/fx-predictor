@@ -357,35 +357,34 @@ def main():
         st.caption("🔴 TradingViewのリアルタイムティック (秒更新)")
         tv_sym = pair_cfg.get("tv_symbol", "OANDA:USDJPY")
         tv_interval = {"5m": "5", "15m": "15", "1h": "60", "4h": "240", "1d": "D"}.get(interval, "60")
-        # Advanced Chart Widget (より堅牢にローソク足が描画される)
+        # Iframe embed方式 (Advanced Chart Widgetよりサイジング問題が起きにくい)
+        tv_url = (
+            "https://s.tradingview.com/widgetembed/"
+            f"?symbol={tv_sym}"
+            f"&interval={tv_interval}"
+            "&hidesidetoolbar=0"
+            "&symboledit=0"
+            "&saveimage=0"
+            "&toolbarbg=0e1117"
+            "&studies=%5B%22MASimple%40tv-basicstudies%22%2C%22RSI%40tv-basicstudies%22%5D"
+            "&theme=dark"
+            "&style=1"
+            "&timezone=Asia%2FTokyo"
+            "&withdateranges=1"
+            "&studies_overrides=%7B%7D"
+            "&overrides=%7B%7D"
+            "&enabled_features=%5B%5D"
+            "&disabled_features=%5B%22header_symbol_search%22%2C%22header_compare%22%5D"
+            "&locale=ja"
+            "&utm_source=fx-yoso.streamlit.app"
+        )
         tv_html = f"""
-<div class="tradingview-widget-container" style="height:560px;width:100%">
-  <div class="tradingview-widget-container__widget" style="height:calc(100% - 32px);width:100%"></div>
-  <div class="tradingview-widget-copyright"><a href="https://jp.tradingview.com/" rel="noopener nofollow" target="_blank"><span class="blue-text">TradingViewで全市場を追跡</span></a></div>
-  <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js" async>
-  {{
-    "autosize": true,
-    "symbol": "{tv_sym}",
-    "interval": "{tv_interval}",
-    "timezone": "Asia/Tokyo",
-    "theme": "dark",
-    "style": "1",
-    "locale": "ja",
-    "toolbar_bg": "#0e1117",
-    "enable_publishing": false,
-    "withdateranges": true,
-    "hide_side_toolbar": false,
-    "allow_symbol_change": false,
-    "details": false,
-    "hotlist": false,
-    "calendar": false,
-    "studies": ["STD;SMA", "STD;RSI"],
-    "support_host": "https://www.tradingview.com"
-  }}
-  </script>
-</div>
+<iframe src="{tv_url}"
+        style="width:100%;height:560px;border:none;display:block;border-radius:8px;"
+        allowtransparency="true" scrolling="no" frameborder="0">
+</iframe>
 """
-        st.components.v1.html(tv_html, height=600)
+        st.components.v1.html(tv_html, height=580)
         st.caption("💡 上記はTradingViewのライブチャート。下のサポート/レジスタンスはこのアプリの計算値です。")
 
         # 価格水準サマリー
