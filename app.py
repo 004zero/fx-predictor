@@ -12,7 +12,6 @@ from datetime import datetime
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
-import yaml
 from plotly.subplots import make_subplots
 
 from data_fetcher import fetch_ohlc
@@ -24,15 +23,12 @@ from signal_engine import integrate
 from risk_manager import calc_plan
 from entry_levels import compute_live_snapshot
 from backtest import run_backtest
-
-
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.yaml")
+from settings import CFG
 
 
 @st.cache_resource
 def load_config():
-    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)
+    return CFG
 
 
 @st.cache_resource
@@ -205,12 +201,20 @@ def main():
     # --- 銘柄&時間足クイック選択 (Python3.14互換性のためformat_func不使用) ---
     pair_label_to_key = {}
     for k, v in cfg["pairs"].items():
-        pair_label_to_key[str(v.get("label", k))] = k
+        if isinstance(v, dict):
+            label = str(v.get("label", k))
+        else:
+            label = str(k)
+        pair_label_to_key[label] = k
     pair_labels = list(pair_label_to_key.keys())
 
     interval_label_to_key = {}
     for k, v in cfg["intervals"].items():
-        interval_label_to_key[str(v.get("label", k))] = k
+        if isinstance(v, dict):
+            label = str(v.get("label", k))
+        else:
+            label = str(k)
+        interval_label_to_key[label] = k
     interval_labels = list(interval_label_to_key.keys())
 
     qc1, qc2 = st.columns(2)
