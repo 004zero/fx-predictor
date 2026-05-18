@@ -204,14 +204,31 @@ def main():
 
     # --- 銘柄&時間足クイック選択 ---
     pair_keys = list(cfg["pairs"].keys())
+    interval_keys = list(cfg["intervals"].keys())
+
+    def _pair_label(k: str) -> str:
+        return str(cfg["pairs"][k].get("label", k))
+
+    def _interval_label(k: str) -> str:
+        return str(cfg["intervals"][k].get("label", k))
+
     qc1, qc2 = st.columns(2)
-    pair = qc1.selectbox("銘柄", pair_keys,
-                          format_func=lambda k: cfg["pairs"][k]["label"],
-                          key="pair", label_visibility="collapsed")
-    interval = qc2.selectbox("時間足", list(cfg["intervals"].keys()),
-                              index=2,
-                              format_func=lambda k: cfg["intervals"][k]["label"],
-                              key="interval", label_visibility="collapsed")
+    pair = qc1.selectbox(
+        label="銘柄",
+        options=pair_keys,
+        index=0,
+        format_func=_pair_label,
+        key="pair",
+        label_visibility="collapsed",
+    )
+    interval = qc2.selectbox(
+        label="時間足",
+        options=interval_keys,
+        index=min(2, len(interval_keys) - 1),
+        format_func=_interval_label,
+        key="interval",
+        label_visibility="collapsed",
+    )
 
     pair_cfg = cfg["pairs"][pair]
     symbol = pair_cfg["symbol"]
