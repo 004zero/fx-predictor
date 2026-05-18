@@ -1,4 +1,4 @@
-"""資金管理・ロット計算・SL/TP提案"""
+"""資金管理・ロット計算・SL/TP提案 (FX/Gold/BTC対応)"""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -6,34 +6,41 @@ from dataclasses import dataclass
 
 @dataclass
 class TradePlan:
-    lot_10k: float        # 何万通貨
+    units: float          # ロット (FX: 万通貨 / Gold: oz / BTC: BTC)
+    units_label: str      # 単位の表示文字列
     sl_price: float
     tp_price: float
-    sl_pips: float
-    tp_pips: float
+    sl_points: float      # pip/point単位の距離
+    tp_points: float
     risk_jpy: float
-    rr: float             # リスクリワード
+    rr: float
 
 
-def pip_size(pair: str) -> float:
-    return 0.01 if pair.endswith("JPY") else 0.0001
+def pip_size_from_cfg(pair_cfg: dict) -> float:
+    return float(pair_cfg.get("pip", 0.0001))
+
+
+def units_label_for(category: str) -> str:
+    return {"fx": "万通貨", "metal": "oz", "crypto": "BTC"}.get(category, "単位")
 
 
 def calc_plan(
-    pair: str,
+    pair_cfg: dict,
     entry: float,
-    direction: str,   # "買い" / "売り"
+    direction: str,
     atr: float,
     balance_jpy: float,
     risk_pct: float,
     rr: float = 2.0,
-    pip_value_jpy_per_10k: float = 100.0,
     sl_atr_mult: float = 1.5,
 ) -> TradePlan:
-    pip = pip_size(pair)
-    sl_dist = max(atr * sl_atr_mult, pip * 10)   # 最低10pips
-    sl_pips = sl_dist / pip
-    tp_pips = sl_pips * rr
+    pip = pip_size_from_cfg(pair_cfg)
+    point_jpy = float(pair_cfg.get("point_jpy", 100))  # 1pip/point動いた時の円損益（1単位あたり）
+    category = pair_cfg.get("category", "fx")
+
+    sl_dist = max(atr * sl_atr_mult, pip * 10)
+    sl_points = sl_dist / pip
+    tp_points = sl_points * rr
 
     if direction.startswith("買"):
         sl = entry - sl_dist
@@ -42,17 +49,25 @@ def calc_plan(
         sl = entry + sl_dist
         tp = entry - sl_dist * rr
 
-    # リスク金額からロット計算 (JPY建てペア前提のpip_value)
     risk_jpy = balance_jpy * risk_pct / 100.0
-    lot_10k = risk_jpy / (sl_pips * pip_value_jpy_per_10k)
-    lot_10k = max(0.1, round(lot_10k, 1))
+    # 1単位 × sl_points × point_jpy = リスク
+    raw_units = risk_jpy / max(sl_points * point_jpy, 1.0)
 
+    if category == "fx":
+        units = max(0.1, round(raw_units, 1))   # 万通貨単位
+    elif category == "metal":
+        units = max(0.1, round(raw_units, 2))   # oz
+    else:  # crypto
+        units = max(0.001, round(raw_units, 4)) # BTC
+
+    decimals = 5 if pip < 0.01 else (3 if pip < 1 else 1)
     return TradePlan(
-        lot_10k=lot_10k,
-        sl_price=round(sl, 5),
-        tp_price=round(tp, 5),
-        sl_pips=round(sl_pips, 1),
-        tp_pips=round(tp_pips, 1),
+        units=units,
+        units_label=units_label_for(category),
+        sl_price=round(sl, decimals),
+        tp_price=round(tp, decimals),
+        sl_points=round(sl_points, 1),
+        tp_points=round(tp_points, 1),
         risk_jpy=round(risk_jpy, 0),
         rr=rr,
     )

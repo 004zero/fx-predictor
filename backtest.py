@@ -5,9 +5,9 @@ from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
+from sklearn.ensemble import RandomForestClassifier
 
 from predictor import _build_features, FEATURES
-from sklearn.ensemble import RandomForestClassifier
 
 
 @dataclass
@@ -28,7 +28,18 @@ def run_backtest(
     step: int = 50,
     threshold: float = 0.6,
 ) -> BacktestResult:
-    pip = 0.01 if pair.endswith("JPY") else 0.0001
+    # pip単位を銘柄から推定
+    if pair == "USDJPY":
+        pip = 0.01
+    elif pair == "EURUSD":
+        pip = 0.0001
+    elif pair == "GOLD":
+        pip = 0.1
+    elif pair == "BITCOIN":
+        pip = 1.0
+    else:
+        pip = 0.0001
+
     x = _build_features(df).dropna()
     if len(x) < train_window + step * 2:
         raise ValueError("バックテストに十分なデータがありません")

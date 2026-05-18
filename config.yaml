@@ -1,14 +1,8 @@
 pairs:
-  USDJPY: USDJPY=X
-  EURJPY: EURJPY=X
-  GBPJPY: GBPJPY=X
-  AUDJPY: AUDJPY=X
-  EURUSD: EURUSD=X
-  GBPUSD: GBPUSD=X
-  AUDUSD: AUDUSD=X
-  NZDJPY: NZDJPY=X
-  CHFJPY: CHFJPY=X
-  CADJPY: CADJPY=X
+  USDJPY: { symbol: "USDJPY=X", pip: 0.01,   point_jpy: 100,  label: "ドル円", category: "fx" }
+  EURUSD: { symbol: "EURUSD=X", pip: 0.0001, point_jpy: 150,  label: "ユーロドル", category: "fx" }
+  GOLD:   { symbol: "GC=F",     pip: 0.1,    point_jpy: 15,   label: "ゴールド (XAU/USD)", category: "metal" }
+  BITCOIN:{ symbol: "BTC-USD",  pip: 1.0,    point_jpy: 150,  label: "ビットコイン", category: "crypto" }
 
 intervals:
   "5m":  { period: "5d",  label: "5分足" }
@@ -20,9 +14,6 @@ intervals:
 risk:
   account_balance_jpy: 1000000
   risk_per_trade_pct: 2.0
-  default_sl_pips: 30
-  default_tp_pips: 60
-  pip_value_jpy_per_10k: 100
 
 fundamental:
   weekly_schedule_url: "https://kissfx.com/2025fx/"
@@ -36,3 +27,6 @@ prediction:
   horizon_bars: 4
   model: "random_forest"
   test_size: 0.2
+
+refresh:
+  auto_refresh_seconds: 60
